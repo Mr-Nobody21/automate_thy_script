@@ -1,6 +1,5 @@
-# Windows GitHub SSH Setup
+# Windows Universal Git SSH Multi-Account Setup
 
-# Install Chocolatey if missing
 if (!(Get-Command choco.exe -ErrorAction SilentlyContinue)) {
     Write-Host "Chocolatey not found. Installing..."
     Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -8,7 +7,6 @@ if (!(Get-Command choco.exe -ErrorAction SilentlyContinue)) {
     Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
 }
 
-# Dependency Install Function
 function Install-PackageIfMissing($name, $chocoName) {
     if (!(Get-Command $name -ErrorAction SilentlyContinue)) {
         Write-Host "$name not found. Installing..."
@@ -22,45 +20,75 @@ Install-PackageIfMissing "ssh-keygen" "openssh"
 Install-PackageIfMissing "curl" "curl"
 Install-PackageIfMissing "git" "git"
 
-# Get GitHub username
-$GIT_USER = Read-Host "Enter your GitHub username"
-
-# Generate SSH key
-$KEY_PATH = "$env:USERPROFILE\.ssh\id_ed25519_github"
-if (!(Test-Path $KEY_PATH)) {
-    ssh-keygen -t ed25519 -C "$GIT_USER@github" -f $KEY_PATH -N ""
-} else {
-    Write-Host "SSH key already exists at $KEY_PATH"
+$PLATFORMS = @{
+    "github.com"   = "id_ed25519_github"
+    "gitlab.com"   = "id_ed25519_gitlab"
+    "bitbucket.org"= "id_ed25519_bitbucket"
 }
 
-# Display public key
-$PUB_KEY = Get-Content "$KEY_PATH.pub"
-Write-Host ""
-Write-Host "✅ SSH key generated!"
-Write-Host ""
-Write-Host "========== COPY BELOW =========="
-Write-Host $PUB_KEY
-Write-Host "================================="
-Write-Host ""
-Write-Host "👉 Now:"
-Write-Host "1️⃣ Login to GitHub → Settings → SSH and GPG keys → New SSH Key"
-Write-Host "2️⃣ Paste the key."
-Write-Host ""
+Write-Host "--------------------------------------------"
+Write-Host "🚀 Git SSH Multi-Account Setup Utility"
+Write-Host "--------------------------------------------"
 
-# Ask Git user config
-$userChoice = Read-Host "Do you want to configure Git user.name and user.email now? (y/n)"
+foreach ($host in $PLATFORMS.Keys) {
+    $keyName = $PLATFORMS[$host]
+    $keyPath = "$env:USERPROFILE\.ssh\$keyName"
+
+    if (Test-Path $keyPath) {
+        Write-Host "✅ $host key found: $keyPath"
+    } else {
+        Write-Host "❌ $host key NOT found."
+    }
+}
+
+foreach ($host in $PLATFORMS.Keys) {
+    $resp = Read-Host "Setup SSH for $host? (y/n)"
+    $keyName = $PLATFORMS[$host]
+    $keyPath = "$env:USERPROFILE\.ssh\$keyName"
+
+    if ($resp -eq "y" -or $resp -eq "Y") {
+        if (Test-Path $keyPath) {
+            Write-Host "🔑 Key already exists for $host: $keyPath"
+        } else {
+            ssh-keygen -t ed25519 -C "$host" -f $keyPath -N ""
+        }
+    }
+}
+
+$configPath = "$env:USERPROFILE\.ssh\config"
+
+foreach ($host in $PLATFORMS.Keys) {
+    $keyName = $PLATFORMS[$host]
+    $keyPath = "$env:USERPROFILE\.ssh\$keyName"
+
+    if (Test-Path $keyPath) {
+        (Get-Content $configPath | Select-String -NotMatch "Host $host") | Set-Content $configPath
+        Add-Content $configPath "Host $host"
+        Add-Content $configPath "  HostName $host"
+        Add-Content $configPath "  User git"
+        Add-Content $configPath "  IdentityFile $keyPath"
+        Add-Content $configPath "  IdentitiesOnly yes"
+        Add-Content $configPath ""
+    }
+}
+
+foreach ($host in $PLATFORMS.Keys) {
+    $keyName = $PLATFORMS[$host]
+    $keyPath = "$env:USERPROFILE\.ssh\$keyName.pub"
+    if (Test-Path $keyPath) {
+        Write-Host ""
+        Write-Host "🔑 Public key for $host:"
+        Write-Host "========== COPY BELOW =========="
+        Get-Content $keyPath
+        Write-Host "================================="
+        Write-Host "👉 Paste this key into $host SSH keys settings."
+    }
+}
+
+$userChoice = Read-Host "Do you want to configure Git user.name and user.email? (y/n)"
 if ($userChoice -eq "y" -or $userChoice -eq "Y") {
-    $GIT_NAME = Read-Host "Enter your full name for Git commits"
-    $GIT_EMAIL = Read-Host "Enter your email for Git commits"
+    $GIT_NAME = Read-Host "Enter your full name"
+    $GIT_EMAIL = Read-Host "Enter your email"
     git config --global user.name "$GIT_NAME"
     git config --global user.email "$GIT_EMAIL"
-    Write-Host "✅ Git user.name and user.email configured globally."
-} else {
-    Write-Host "Skipping Git global config."
-}
-
-# Test SSH
-$test = Read-Host "Test SSH connection now? (y/n)"
-if ($test -eq "y" -or $test -eq "Y") {
-    ssh -T git@github.com
 }

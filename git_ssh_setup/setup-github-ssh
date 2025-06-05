@@ -1,18 +1,24 @@
+
+---
+
+### 2️⃣ `setup-git-ssh` (Dispatcher)
+
+```bash
 #!/bin/bash
 
 OS=$(uname -s)
 
 if [[ "$OS" == "Linux" || "$OS" == "Darwin" ]]; then
   echo "Detected Unix-based OS: $OS"
-  bash ./setup-github-ssh-unix.sh
+  bash ./setup-git-ssh-unix.sh
   exit 0
 fi
 
 if [[ "$OS" == MINGW* || "$OS" == MSYS* ]]; then
   echo "Detected Windows Git Bash."
-  bash ./setup-github-ssh-unix.sh
+  bash ./setup-git-ssh-unix.sh
   exit 0
 fi
 
 echo "Detected Native Windows."
-powershell.exe -ExecutionPolicy Bypass -File setup-github-ssh-win.ps1
+powershell.exe -ExecutionPolicy Bypass -File setup-git-ssh-win.ps1

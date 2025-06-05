@@ -35,45 +35,93 @@ install_package curl
 install_package ssh-keygen
 install_package git
 
-read -p "Enter your GitHub username: " GIT_USER
+echo "--------------------------------------------"
+echo "🚀 Git SSH Multi-Account Setup Utility"
+echo "--------------------------------------------"
 
-KEY_PATH="$HOME/.ssh/id_ed25519_github"
-if [ ! -f "$KEY_PATH" ]; then
-  ssh-keygen -t ed25519 -C "$GIT_USER@github" -f "$KEY_PATH" -N ""
-else
-  echo "SSH key already exists at $KEY_PATH"
-fi
+declare -A PLATFORMS
+PLATFORMS=(
+  ["github.com"]="id_ed25519_github"
+  ["gitlab.com"]="id_ed25519_gitlab"
+  ["bitbucket.org"]="id_ed25519_bitbucket"
+)
 
-PUB_KEY=$(cat "$KEY_PATH.pub")
+echo "🔍 Checking existing SSH keys:"
+for HOST in "${!PLATFORMS[@]}"; do
+  KEY_NAME="${PLATFORMS[$HOST]}"
+  KEY_PATH="$HOME/.ssh/$KEY_NAME"
+  if [ -f "$KEY_PATH" ]; then
+    echo "✅ $HOST key found: $KEY_PATH"
+  else
+    echo "❌ $HOST key NOT found."
+  fi
+done
 
 echo ""
-echo "✅ SSH key generated!"
-echo ""
-echo "========== COPY BELOW =========="
-echo "$PUB_KEY"
-echo "================================="
-echo ""
-echo "👉 Now:"
-echo "1️⃣ Login to GitHub → Settings → SSH and GPG keys → New SSH Key"
-echo "2️⃣ Paste the key."
-echo ""
+echo "Which platforms do you want to setup?"
+for HOST in "${!PLATFORMS[@]}"; do
+  read -p "Setup SSH for $HOST? (y/n): " RESP
+  if [[ "$RESP" =~ ^[Yy]$ ]]; then
+    KEY_NAME="${PLATFORMS[$HOST]}"
+    KEY_PATH="$HOME/.ssh/$KEY_NAME"
+    if [ -f "$KEY_PATH" ]; then
+      echo "🔑 Key already exists for $HOST: $KEY_PATH"
+    else
+      echo "Generating SSH key for $HOST..."
+      ssh-keygen -t ed25519 -C "$HOST" -f "$KEY_PATH" -N ""
+    fi
+  fi
+done
 
-# Ask to configure Git user.name and user.email
 echo ""
-read -p "Do you want to configure Git user.name and user.email now? (y/n): " CONFIG_GIT
+echo "⚙️ Updating ~/.ssh/config file"
+SSH_CONFIG="$HOME/.ssh/config"
 
+for HOST in "${!PLATFORMS[@]}"; do
+  KEY_NAME="${PLATFORMS[$HOST]}"
+  KEY_PATH="$HOME/.ssh/$KEY_NAME"
+
+  if [ -f "$KEY_PATH" ]; then
+    sed -i "/Host $HOST/,+3d" $SSH_CONFIG 2>/dev/null || true
+
+    {
+      echo "Host $HOST"
+      echo "  HostName $HOST"
+      echo "  User git"
+      echo "  IdentityFile $KEY_PATH"
+      echo "  IdentitiesOnly yes"
+      echo ""
+    } >> $SSH_CONFIG
+  fi
+done
+
+chmod 600 $SSH_CONFIG
+
+echo ""
+echo "✅ SSH config updated."
+
+for HOST in "${!PLATFORMS[@]}"; do
+  KEY_NAME="${PLATFORMS[$HOST]}"
+  KEY_PATH="$HOME/.ssh/$KEY_NAME"
+  if [ -f "$KEY_PATH" ]; then
+    PUB_KEY=$(cat "$KEY_PATH.pub")
+    echo ""
+    echo "🔑 Public key for $HOST:"
+    echo "========== COPY BELOW =========="
+    echo "$PUB_KEY"
+    echo "================================="
+    echo "👉 Paste this key into $HOST SSH keys settings."
+  fi
+done
+
+read -p "Do you want to configure Git user.name and user.email globally? (y/n): " CONFIG_GIT
 if [[ "$CONFIG_GIT" =~ ^[Yy]$ ]]; then
   read -p "Enter your full name for Git commits: " GIT_NAME
   read -p "Enter your email for Git commits: " GIT_EMAIL
   git config --global user.name "$GIT_NAME"
   git config --global user.email "$GIT_EMAIL"
   echo "✅ Git user.name and user.email configured globally."
-else
-  echo "Skipping Git global config."
 fi
 
-# Test SSH
-read -p "Test SSH connection now? (y/n): " TEST
-if [[ "$TEST" =~ ^[Yy]$ ]]; then
-  ssh -T git@github.com
-fi
+echo ""
+echo "🚀 All done. You are fully configured!"
