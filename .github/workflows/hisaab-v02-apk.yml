@@ -3,6 +3,8 @@ name: Build Hisaab V0.2 APK
 on:
   push:
     branches: [hisaab-apk-build-20260729]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
