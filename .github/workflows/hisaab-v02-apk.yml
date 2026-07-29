@@ -18,7 +18,12 @@ jobs:
       - name: Extract Hisaab source
         run: |
           mkdir -p build-src
-          cat hisaab-build/source.b64.part.* | base64 --decode --ignore-garbage > Hisaab_Personal_Ledger_Implementation_v0.2.zip
+          sha256sum hisaab-build/source.b64.part.*
+          : > Hisaab_Personal_Ledger_Implementation_v0.2.zip
+          for file in hisaab-build/source.b64.part.*; do
+            echo "Decoding $file"
+            base64 --decode "$file" >> Hisaab_Personal_Ledger_Implementation_v0.2.zip
+          done
           echo "f5c1e5613d154ee0eee8d4220c17a2c08a3df464ca8d3096cba121d79395789f  Hisaab_Personal_Ledger_Implementation_v0.2.zip" | sha256sum -c -
           unzip -t Hisaab_Personal_Ledger_Implementation_v0.2.zip
           unzip -q Hisaab_Personal_Ledger_Implementation_v0.2.zip -d build-src
