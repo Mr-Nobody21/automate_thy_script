@@ -1,0 +1,69 @@
+name: Build Hisaab V0.2 APK
+
+on:
+  push:
+    branches: [hisaab-apk-build-20260729]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract Hisaab source
+        run: |
+          mkdir -p build-src
+          sha256sum hisaab-build/source.b64.part.*
+          : > Hisaab_Personal_Ledger_Implementation_v0.2.zip
+          for file in hisaab-build/source.b64.part.*; do
+            echo "Decoding $file"
+            base64 --decode "$file" >> Hisaab_Personal_Ledger_Implementation_v0.2.zip
+          done
+          echo "f5c1e5613d154ee0eee8d4220c17a2c08a3df464ca8d3096cba121d79395789f  Hisaab_Personal_Ledger_Implementation_v0.2.zip" | sha256sum -c -
+          unzip -t Hisaab_Personal_Ledger_Implementation_v0.2.zip
+          unzip -q Hisaab_Personal_Ledger_Implementation_v0.2.zip -d build-src
+          cp -R build-src/hisaab_v0_2_src/. app
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android project
+        working-directory: app
+        run: |
+          chmod +x scripts/bootstrap_platforms.sh
+          ./scripts/bootstrap_platforms.sh
+
+      - name: Install packages
+        working-directory: app
+        run: flutter pub get
+
+      - name: Analyse
+        working-directory: app
+        run: flutter analyze
+
+      - name: Test
+        working-directory: app
+        run: flutter test
+
+      - name: Build debug APK
+        working-directory: app
+        run: flutter build apk --debug
+
+      - name: Verify APK
+        working-directory: app
+        run: |
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hisaab-Personal-Ledger-v0.2-debug
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
